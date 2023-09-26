@@ -1,4 +1,4 @@
-const config = require("./schema.json");
+const config = require("../../../schema.json");
 const { EOL } = require("os");
 const fs = require("fs");
 
@@ -27,22 +27,25 @@ function handleService(fileName, columns) {
   IUpdate${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   IEdit${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   IDelete${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
-} from '../dtos/${fileName}.dto.ts';
-  
+} from '../dtos/${fileName}.dto';
+
+const prisma = new PrismaClient();${EOL}
   const create${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  } = (data:ICreate${
+  } = async (data:ICreate${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }) => { ${EOL}
+  }):Promise<{errorCode:'NO_ERROR' | 'EXCEPTION_ERROR', data:any}> => { ${EOL}
   try{
   const model = await prisma.${fileName}.create({
     data: {
   `;
   // create
   columns.forEach((c) => {
-    serviceString += `
-          ${c.name}: data.${c.name},
-        `;
+    if (c.name != "timestamps" && !c.notRequiredInForm) {
+      serviceString += `
+      ${c.name}: data.${c.name},
+    `;
+    }
   });
   serviceString += `
   createdAt: new Date(),
@@ -55,6 +58,7 @@ if(model){
         data: model
     }
 }
+return {errorCode:'EXCEPTION_ERROR',data:null}
 }catch(err:any){
     logger.error('ERROR_IN_SAVING', err.Message);
     return {errorCode:'EXCEPTION_ERROR',data:null}
@@ -64,11 +68,11 @@ if(model){
   // edit
   serviceString += ` const edit${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  } = (data:IEdit${
+  } = async(data:IEdit${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }) => { ${EOL}
+  }):Promise<{errorCode:'NO_ERROR' | 'EXCEPTION_ERROR', data:any}> => { ${EOL}
   try{
-  const model = await prisma.${fileName}.findOne({
+  const model = await prisma.${fileName}.findFirst({
     where: {
         id: data.id
 }
@@ -79,6 +83,7 @@ if(model){
         data: model
     }
 }
+return {errorCode:'EXCEPTION_ERROR',data:null}
 }catch(err:any){
     logger.error('ERROR_IN_SAVING', err.Message);
     return {errorCode:'EXCEPTION_ERROR',data:null}
@@ -94,16 +99,18 @@ if(model){
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
   } = async (data:IUpdate${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }):Promise<{errorCode:'NO_ERROR' | 'EXCEPTION_ERROR' | 'INVALID_DATA'}> => { ${EOL}
+  }):Promise<{errorCode:'NO_ERROR' | 'EXCEPTION_ERROR' | 'INVALID_DATA', data?:any}> => { ${EOL}
    try{
   const model = await prisma.${fileName}.create({
     data: {
   `;
   // create
   columns.forEach((c) => {
-    serviceString += `
-          ${c.name}: data.${c.name},
-        `;
+    if (c.name != "timestamps" && !c.notRequiredInForm) {
+      serviceString += `
+      ${c.name}: data.${c.name},
+    `;
+    }
   });
   serviceString += `
   updatedAt : new Date()
@@ -125,7 +132,7 @@ return {errorCode:'EXCEPTION_ERROR'}
   // findAll
   serviceString += `const findAll${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  } = async  ():Promise<{errorCode:'NO_ERROR'|'EXCEPTION_ERROR'}> => {
+  } = async  ():Promise<{errorCode:'NO_ERROR'|'EXCEPTION_ERROR', data?:any}> => {
    try{
     const record = await prisma.${fileName}.findAll();
 
@@ -157,7 +164,6 @@ return {errorCode:'EXCEPTION_ERROR'}
     if(record){
         return {
             errorCode: 'NO_ERROR',
-            data: model
         }
     }
     return {errorCode:'EXCEPTION_ERROR'}
@@ -190,21 +196,23 @@ return {errorCode:'EXCEPTION_ERROR'}
 function handleController(fileName) {
   let controllerString = `import {Request,Response} from 'express' ${EOL}
     import { validationResult } from 'express-validator';${EOL}
-    import ${fileName}Service from '../services/${fileName}Service.ts'
+    import {${
+      fileName.charAt(0).toUpperCase() + fileName.slice(1)
+    }Service} from '../services/${fileName}.service'
     const {create${fileName.charAt(0).toUpperCase() + fileName.slice(1)},edit${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
   },
 update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},findAll${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  },delete${
+  },delete${fileName.charAt(0).toUpperCase() + fileName.slice(1)}} = ${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }} = ${fileName}Service
+  }Service
     `;
 
   controllerString += `
     
     const create =  async (req:Request ,res:Response) => { ${EOL}
-     const result = validationResult(req);${EOL}
+     const result = validationResult(req.body);${EOL}
      if(!result.isEmpty()){${EOL}
         return res.json({${EOL}
             errorCode:'VALIDATION_ERROR',${EOL}
@@ -213,7 +221,7 @@ update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},findAll${
      }${EOL}
      const {errorCode,data} = await create${
        fileName.charAt(0).toUpperCase() + fileName.slice(1)
-     }();${EOL}
+     }(req.body);${EOL}
      ${EOL}
      return  res.json({${EOL}
         errorCode,${EOL}
@@ -222,7 +230,7 @@ update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},findAll${
     }${EOL}
 
     const edit =  async (req:Request ,res:Response) => { ${EOL}
-    const result = validationResult(req);${EOL}
+    const result = validationResult(req.body);${EOL}
     if(!result.isEmpty()){${EOL}
        return res.json({${EOL}
            errorCode:'VALIDATION_ERROR',${EOL}
@@ -231,16 +239,16 @@ update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},findAll${
     }${EOL}
     const {errorCode,data} = await edit${
       fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    }();${EOL}
+    }(req.body);${EOL}
     ${EOL}
-    return return res.json({${EOL}
+    return  res.json({${EOL}
        errorCode,${EOL}
        data${EOL}
    })${EOL}
    }${EOL}
 
    const update =  async (req:Request ,res:Response) => { ${EOL}
-   const result = validationResult(req);${EOL}
+   const result = validationResult(req.body);${EOL}
    if(!result.isEmpty()){${EOL}
       return res.json({${EOL}
           errorCode:'VALIDATION_ERROR',${EOL}
@@ -249,25 +257,25 @@ update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},findAll${
    }${EOL}
     const {errorCode,data} = await update${
       fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    }();${EOL}
+    }(req.body);${EOL}
     ${EOL}
-        return return res.json({${EOL}
+        return res.json({${EOL}
             errorCode,${EOL}
             data${EOL}
         })${EOL}
     }${EOL}
 
     const findAll =  async (req:Request ,res:Response) => { ${EOL}
-    const result = validationResult(req);${EOL}
+    const result = validationResult(req.body);${EOL}
     if(!result.isEmpty()){${EOL}
         return res.json({${EOL}
             errorCode:'VALIDATION_ERROR',${EOL}
             data:result.array()${EOL}
         })${EOL}
     }${EOL}
-    const {errorCode,data} = await findAll${
+    const {errorCode} = await findAll${
       fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    }();${EOL}
+    }(req.body);${EOL}
     ${EOL}
         return return res.json({${EOL}
             errorCode,${EOL}
@@ -276,21 +284,20 @@ update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},findAll${
     }${EOL}
 
 
-    const delete =  async (req:Request ,res:Response) => { ${EOL}
-    const result = validationResult(req);${EOL}
+    const deleteRecord =  async (req:Request ,res:Response) => { ${EOL}
+    const result = validationResult(req.body);${EOL}
     if(!result.isEmpty()){${EOL}
         return res.json({${EOL}
             errorCode:'VALIDATION_ERROR',${EOL}
             data:result.array()${EOL}
         })${EOL}
     }${EOL}
-    const {errorCode,data} = await delete${
+    const {errorCode} = await delete${
       fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    }();${EOL}
+    }(req.body);${EOL}
     ${EOL}
-        return return res.json({${EOL}
-            errorCode,${EOL}
-            data${EOL}
+        return res.json({${EOL}
+            errorCode${EOL}
         })${EOL}
     }${EOL}
 
@@ -299,7 +306,7 @@ update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},findAll${
         create,
         edit,
         update,
-        delete,
+        deleteRecord,
         findAll
     ]
     
@@ -380,7 +387,7 @@ function handlePrismaSchema() {
   }
   const modelString = writePrismaModels();
   schemaString = schemaString.replace("$$models$$", modelString);
-  fs.writeFileSync("schema.prisma", schemaString);
+  fs.writeFileSync("prisma/schema.prisma", schemaString);
 }
 
 function writePrismaModels() {
