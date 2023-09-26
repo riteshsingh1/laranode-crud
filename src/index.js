@@ -436,7 +436,6 @@ function handlePrismaSchema(path) {
 }
 
 function writePrismaModels() {
-  const model = fs.readFileSync(__dirname + "/stubs/prisma.model.stub", "utf8");
   let newModel = "";
 
   for (let index = 0; index < config.tables.length; index++) {
@@ -451,9 +450,15 @@ function writePrismaModels() {
           ele.type.charAt(0).toUpperCase() + ele.type.slice(1)
         } ${ele?.unique ? "@unique()" : ""} ${EOL}`;
         // work on relation fields
-        // if(ele.relationField){
-        //     newModel += ``
-        // }
+        if (ele.relationField) {
+          newModel += `${element.name.toLowerCase()}     ${
+            element.name
+          }      @relation(fields: [${ele.name}], references: [id])`;
+
+          if (config.relationShipMode === "prisma") {
+            newModel += `@@index[${ele.name}]`;
+          }
+        }
       }
     });
     newModel += `} ${EOL}`;
