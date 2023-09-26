@@ -1,9 +1,6 @@
 const config = require("./schema.json");
 const { EOL } = require("os");
 const fs = require("fs");
-// console.log(config)
-
-// read file and prepare schema.json
 
 try {
   handlePrismaSchema();
