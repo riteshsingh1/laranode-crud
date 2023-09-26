@@ -1,0 +1,24 @@
+{
+  "name": "npm-crud",
+  "version": "0.1.0",
+  "description": "Crud Generator with Prisma Mysql And Express Js with validation",
+  "main": "index.js",
+  "scripts": {
+    "crud":"node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "Crud",
+    "Generator"
+  ],
+  "author": "Ritesh Singh <hello@imritesh.com>",
+  "license": "ISC",
+  "devDependencies": {
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "vorpal": "^1.12.0"
+  }
+}
