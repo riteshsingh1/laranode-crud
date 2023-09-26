@@ -4,7 +4,11 @@ const fs = require("fs");
 
 try {
   handlePrismaSchema();
-  handleValidations();
+
+  for (let index = 0; index < config.tables.length; index++) {
+    const element = config.tables[index];
+    handleValidations(element.name, element.columns);
+  }
   for (let index = 0; index < config.tables.length; index++) {
     const element = config.tables[index];
     handleTypes(element.name, element.columns);
@@ -22,143 +26,190 @@ try {
 }
 
 function handleService(fileName, columns) {
-  let serviceString = `import { ${fileName}, PrismaClient } from '@prisma/client' ${EOL}
-  import {ICreate${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
+  let serviceString = `
+import { ${fileName}, PrismaClient } from '@prisma/client';
+import {
+  ICreate${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   IUpdate${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   IEdit${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   IDelete${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
 } from '../dtos/${fileName}.dto';
-
+// initialized prisma client, you can do this in a seperate file as well
 const prisma = new PrismaClient();${EOL}
-  const create${
+/**
+ * Saves ${fileName} into database
+ * @param data {
+ `;
+  columns.forEach((c) => {
+    if (c.name != "timestamps" && !c.notRequiredInForm) {
+      serviceString += ` * ${c.name}: ${c.type},
+`;
+    }
+  });
+
+  serviceString += `* }
+ * @returns {errorCode:'NO_ERROR' | 'EXCEPTION_ERROR', data:any}
+ */
+const create${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
   } = async (data:ICreate${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }):Promise<{errorCode:'NO_ERROR' | 'EXCEPTION_ERROR', data:any}> => { ${EOL}
+  }):Promise<{errorCode:'NO_ERROR' | 'EXCEPTION_ERROR', data:any}> => {
   try{
-  const model = await prisma.${fileName}.create({
-    data: {
-  `;
+    const model = await prisma.${fileName}.create({
+      data: {
+        `;
   // create
   columns.forEach((c) => {
     if (c.name != "timestamps" && !c.notRequiredInForm) {
-      serviceString += `
-      ${c.name}: data.${c.name},
-    `;
+      serviceString += `${c.name}: data.${c.name},`;
+    }
+    if (c.notRequiredInForm) {
+      serviceString += `${c.name}:${c.defaultValue},`;
     }
   });
   serviceString += `
-  createdAt: new Date(),
-  updatedAt : new Date()
-}
-});
-if(model){
-    return {
-        errorCode: 'NO_ERROR',
-        data: model
+      createdAt: new Date(),
+      updatedAt : new Date()
     }
-}
-return {errorCode:'EXCEPTION_ERROR',data:null}
-}catch(err:any){
-    logger.error('ERROR_IN_SAVING', err.Message);
+  });
+  if(model){
+    return {
+      errorCode: 'NO_ERROR',
+      data: model
+    }
+  }
+  return { errorCode:'EXCEPTION_ERROR', data:null }
+
+  } catch(err:any) {
+    console.log('ERROR_IN_SAVING', err.Message);
     return {errorCode:'EXCEPTION_ERROR',data:null}
+  }
 }
-}
-`;
-  // edit
-  serviceString += ` const edit${
+
+/**
+ * Fetches Single User From Database
+ * @param data {
+ *  id: number
+ * }
+ * @returns { errorCode:'NO_ERROR' | 'EXCEPTION_ERROR', data:any }
+ */
+const edit${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
   } = async(data:IEdit${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
   }):Promise<{errorCode:'NO_ERROR' | 'EXCEPTION_ERROR', data:any}> => { ${EOL}
-  try{
-  const model = await prisma.${fileName}.findFirst({
-    where: {
+  try {
+    const model = await prisma.${fileName}.findFirst({
+      where: {
         id: data.id
-}
-});
-if(model){
-    return {
+      }
+    });
+    if(model){
+      return {
         errorCode: 'NO_ERROR',
         data: model
+      }
     }
-}
-return {errorCode:'EXCEPTION_ERROR',data:null}
-}catch(err:any){
-    logger.error('ERROR_IN_SAVING', err.Message);
-    return {errorCode:'EXCEPTION_ERROR',data:null}
-}
+    return { errorCode:'EXCEPTION_ERROR', data:null }
+  } catch(err:any) {
+    console.log('ERROR_IN_SAVING', err.Message);
+    return { errorCode:'EXCEPTION_ERROR', data:null }
+  }
 }
 
-
+/**
+ * Updates single  ${fileName} into database
+ * @param data {
+ `;
+  columns.forEach((c) => {
+    if (c.name != "timestamps" && !c.notRequiredInForm) {
+      serviceString += ` * ${c.name}: ${c.type},
 `;
+    }
+  });
 
-  // update
-  serviceString += `
-  const update${
+  serviceString += `* }
+ * @returns {errorCode:'NO_ERROR' | 'EXCEPTION_ERROR', data:any}
+ */
+const update${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
   } = async (data:IUpdate${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }):Promise<{errorCode:'NO_ERROR' | 'EXCEPTION_ERROR' | 'INVALID_DATA', data?:any}> => { ${EOL}
-   try{
-  const model = await prisma.${fileName}.create({
-    data: {
-  `;
+  }):Promise<{errorCode:'NO_ERROR' | 'EXCEPTION_ERROR' | 'INVALID_DATA', data?:any}> => { 
+  try{
+    const model = await prisma.${fileName}.update({
+      where:{
+        id:data.id
+      },
+      data: {
+      `;
   // create
   columns.forEach((c) => {
     if (c.name != "timestamps" && !c.notRequiredInForm) {
-      serviceString += `
-      ${c.name}: data.${c.name},
+      serviceString += `      ${c.name}: data.${c.name},
     `;
     }
   });
-  serviceString += `
-  updatedAt : new Date()
+  serviceString += `      updatedAt : new Date()
+        }
+      });
+      if(model){
+        return {
+          errorCode: 'NO_ERROR',
+          data: model
+        }
+      }
+      return { errorCode: 'EXCEPTION_ERROR' }
+  } catch(err:any) {
+    console.log('ERROR_IN_SAVING', err.Message);
+    return { errorCode:'EXCEPTION_ERROR', data:null }
+  }
 }
-});
-if(model){
-    return {
-        errorCode: 'NO_ERROR',
-        data: model
-    }
-}
-return {errorCode:'EXCEPTION_ERROR'}
-}catch(err:any){
-    logger.error('ERROR_IN_SAVING', err.Message);
-    return {errorCode:'EXCEPTION_ERROR',data:null}
-}
-}`;
+`;
 
   // findAll
-  serviceString += `const findAll${
+  serviceString += `
+  /**
+   * Fetches All ${fileName} From Database
+   * @returns {errorCode: 'NO_ERROR' | 'EXCEPTION_ERROR', data? : any}
+   */
+  const findAll${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
   } = async  ():Promise<{errorCode:'NO_ERROR'|'EXCEPTION_ERROR', data?:any}> => {
    try{
-    const record = await prisma.${fileName}.findAll();
+    const record = await prisma.${fileName}.findMany();
 
     if(record){
-        return {
-            errorCode: 'NO_ERROR',
-            data: model
-        }
+      return {
+        errorCode: 'NO_ERROR',
+        data: record
+      }
     }
-    return {errorCode:'EXCEPTION_ERROR'}
+    return { errorCode:'EXCEPTION_ERROR' }
    }catch(err:any){
-        logger.error('ERROR_IN_SAVING', err.Message);
-        return {errorCode:'EXCEPTION_ERROR',data:null}
+        console.log('ERROR_IN_SAVING', err.Message);
+        return { errorCode:'EXCEPTION_ERROR',data:null }
     }
-    
-  }`;
+}
+`;
 
   // delete
-  serviceString += `const delete${
+  serviceString += `
+/**
+ * Deletes Single ${fileName} From Database
+ * @returns {errorCode: 'NO_ERROR' | 'EXCEPTION_ERROR'}
+ */
+  const delete${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
   } = async  (data:IDelete${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
   }):Promise<{errorCode:'NO_ERROR'|'EXCEPTION_ERROR'}> => {
    try{
     const record = await prisma.${fileName}.delete({
-        id:data.id
+        where:{
+          id:data.id
+        }
     });
 
     if(record){
@@ -168,21 +219,19 @@ return {errorCode:'EXCEPTION_ERROR'}
     }
     return {errorCode:'EXCEPTION_ERROR'}
    }catch(err:any){
-        logger.error('ERROR_IN_SAVING', err.Message);
-        return {errorCode:'EXCEPTION_ERROR',data:null}
+        console.log('ERROR_IN_SAVING', err.Message);
+        return {errorCode:'EXCEPTION_ERROR'}
     }
-    
-  }
+}
   
   export const ${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
   }Service = {
     create${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
     edit${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
-    update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},findAll${
-    fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  },
-  delete${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
+    update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
+    findAll${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
+    delete${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   }
   `;
 
@@ -194,123 +243,115 @@ return {errorCode:'EXCEPTION_ERROR'}
 }
 
 function handleController(fileName) {
-  let controllerString = `import {Request,Response} from 'express' ${EOL}
-    import { validationResult } from 'express-validator';${EOL}
-    import {${
-      fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    }Service} from '../services/${fileName}.service'
-    const {create${fileName.charAt(0).toUpperCase() + fileName.slice(1)},edit${
+  let controllerString = `
+import { Request, Response } from 'express';
+import { validationResult } from 'express-validator';
+import { ${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  },
-update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},findAll${
-    fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  },delete${fileName.charAt(0).toUpperCase() + fileName.slice(1)}} = ${
-    fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }Service
-    `;
+  }Service } from '../services/${fileName}.service';${EOL}
+const { 
+  create${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
+  edit${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
+  update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
+  findAll${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
+  delete${fileName.charAt(0).toUpperCase() + fileName.slice(1)}
+} = ${fileName.charAt(0).toUpperCase() + fileName.slice(1)}Service; ${EOL}`;
 
   controllerString += `
-    
-    const create =  async (req:Request ,res:Response) => { ${EOL}
-     const result = validationResult(req.body);${EOL}
-     if(!result.isEmpty()){${EOL}
-        return res.json({${EOL}
-            errorCode:'VALIDATION_ERROR',${EOL}
-            data:result.array()${EOL}
-        })${EOL}
-     }${EOL}
-     const {errorCode,data} = await create${
-       fileName.charAt(0).toUpperCase() + fileName.slice(1)
-     }(req.body);${EOL}
-     ${EOL}
-     return  res.json({${EOL}
-        errorCode,${EOL}
-        data${EOL}
-    })${EOL}
-    }${EOL}
+const create =  async (req:Request ,res:Response) => { 
+  const result = validationResult(req.body);
+  if(!result.isEmpty()) {
+    return res.json({
+        errorCode:'VALIDATION_ERROR',
+        data:result.array()
+    })
+  }
+  const { errorCode, data } = await create${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }(req.body);
+  return res.json({
+    errorCode,
+    data,
+  });
+};
 
-    const edit =  async (req:Request ,res:Response) => { ${EOL}
-    const result = validationResult(req.body);${EOL}
-    if(!result.isEmpty()){${EOL}
-       return res.json({${EOL}
-           errorCode:'VALIDATION_ERROR',${EOL}
-           data:result.array()${EOL}
-       })${EOL}
-    }${EOL}
-    const {errorCode,data} = await edit${
-      fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    }(req.body);${EOL}
-    ${EOL}
-    return  res.json({${EOL}
-       errorCode,${EOL}
-       data${EOL}
-   })${EOL}
-   }${EOL}
+const edit =  async (req:Request ,res:Response) => { 
+  const result = validationResult(req.body);
+  if(!result.isEmpty()){
+    return res.json({
+      errorCode:'VALIDATION_ERROR',
+      data:result.array()
+    })
+  }
+  const { errorCode, data } = await edit${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }(req.body);${EOL}
+  return res.json({
+    errorCode,
+    data,
+  });
+}
 
-   const update =  async (req:Request ,res:Response) => { ${EOL}
-   const result = validationResult(req.body);${EOL}
-   if(!result.isEmpty()){${EOL}
-      return res.json({${EOL}
-          errorCode:'VALIDATION_ERROR',${EOL}
-          data:result.array()${EOL}
-      })${EOL}
-   }${EOL}
-    const {errorCode,data} = await update${
-      fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    }(req.body);${EOL}
-    ${EOL}
-        return res.json({${EOL}
-            errorCode,${EOL}
-            data${EOL}
-        })${EOL}
-    }${EOL}
+const update =  async (req:Request ,res:Response) => { 
+  const result = validationResult(req.body);
+  if(!result.isEmpty()){
+    return res.json({
+      errorCode:'VALIDATION_ERROR',
+      data:result.array()
+    })
+  }
+  const {errorCode,data} = await update${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }(req.body);
+  return res.json({
+    errorCode,
+    data
+  })
+}
 
-    const findAll =  async (req:Request ,res:Response) => { ${EOL}
-    const result = validationResult(req.body);${EOL}
-    if(!result.isEmpty()){${EOL}
-        return res.json({${EOL}
-            errorCode:'VALIDATION_ERROR',${EOL}
-            data:result.array()${EOL}
-        })${EOL}
-    }${EOL}
-    const {errorCode} = await findAll${
-      fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    }(req.body);${EOL}
-    ${EOL}
-        return return res.json({${EOL}
-            errorCode,${EOL}
-            data${EOL}
-        })${EOL}
-    }${EOL}
+const findAllRecords =  async (req:Request ,res:Response) => { 
+  const result = validationResult(req.body);
+  if(!result.isEmpty()){
+    return res.json({
+      errorCode:'VALIDATION_ERROR',
+      data:result.array()
+    })
+  }
+  const { errorCode,data } = await findAll${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }();
+    return res.json({
+        errorCode,
+        data
+    })
+}
 
 
-    const deleteRecord =  async (req:Request ,res:Response) => { ${EOL}
-    const result = validationResult(req.body);${EOL}
-    if(!result.isEmpty()){${EOL}
-        return res.json({${EOL}
-            errorCode:'VALIDATION_ERROR',${EOL}
-            data:result.array()${EOL}
-        })${EOL}
-    }${EOL}
-    const {errorCode} = await delete${
-      fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    }(req.body);${EOL}
-    ${EOL}
-        return res.json({${EOL}
-            errorCode${EOL}
-        })${EOL}
-    }${EOL}
+const deleteRecord =  async (req:Request,res:Response) => { 
+  const result = validationResult(req.body);
+  if(!result.isEmpty()){
+    return res.json({
+      errorCode:'VALIDATION_ERROR',
+      data:result.array()
+    })
+  }
+  const { errorCode } = await delete${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }(req.body);
+
+  return res.json({
+    errorCode
+  });
+}
 
 
-    export const ${fileName}Controller = [
-        create,
-        edit,
-        update,
-        deleteRecord,
-        findAll
-    ]
-    
-    `;
+export const ${fileName}Controller = [
+  create,
+  edit,
+  update,
+  deleteRecord,
+  findAllRecords
+]`;
   var dir = "src/controllers";
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -321,53 +362,56 @@ update${fileName.charAt(0).toUpperCase() + fileName.slice(1)},findAll${
   );
 }
 
-function handleValidations() {
+function handleValidations(fileName, columns) {
   let validatorString = `import { body } from 'express-validator';${EOL}`;
 
-  for (let index = 0; index < config.tables.length; index++) {
-    const element = config.tables[index];
-    // console.log('e',element)
-    validatorString += `const validateCreate${
-      config.tables[index].name.charAt(0).toUpperCase() +
-      config.tables[index].name.slice(1)
-    }Request =  [ ${EOL}`;
-    element.columns.forEach((ele) => {
-      if (ele.name != "timestamps" && !ele.notRequiredInForm) {
-        validatorString += `body("${ele.name}").notEmpty(), ${EOL}`;
-      }
-    });
-    validatorString += `] ${EOL}`;
+  validatorString += `const validateCreate${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }Request =  [ ${EOL}`;
+  columns.forEach((ele) => {
+    if (ele.name != "timestamps" && !ele.notRequiredInForm) {
+      validatorString += `body("${ele.name}").notEmpty(), ${EOL}`;
+    }
+  });
+  validatorString += `] ${EOL}`;
 
-    validatorString += `const validateUpdate${
-      config.tables[index].name.charAt(0).toUpperCase() +
-      config.tables[index].name.slice(1)
-    }Request =  [ ${EOL} body("id").notEmpty(), ${EOL}`;
-    element.columns.forEach((eleUpdate) => {
-      if (eleUpdate.name != "timestamps" && !eleUpdate.notRequiredInForm) {
-        validatorString += `body("${eleUpdate.name}").notEmpty(), ${EOL}`;
-      }
-    });
-    validatorString += `] ${EOL}`;
+  validatorString += `const validateUpdate${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }Request =  [ ${EOL} body("id").notEmpty(), ${EOL}`;
+  columns.forEach((eleUpdate) => {
+    if (eleUpdate.name != "timestamps" && !eleUpdate.notRequiredInForm) {
+      validatorString += `body("${eleUpdate.name}").notEmpty(), ${EOL}`;
+    }
+  });
+  validatorString += `] ${EOL}`;
 
-    validatorString += `const validateEdit${
-      config.tables[index].name.charAt(0).toUpperCase() +
-      config.tables[index].name.slice(1)
-    }Request  = [ ${EOL}`;
-    validatorString += `body("id").notEmpty(), ${EOL}`;
-    validatorString += `] ${EOL}`;
+  validatorString += `const validateEdit${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }Request  = [ ${EOL}`;
+  validatorString += `body("id").notEmpty(), ${EOL}`;
+  validatorString += `] ${EOL}`;
 
-    validatorString += `const validateDelete${
-      config.tables[index].name.charAt(0).toUpperCase() +
-      config.tables[index].name.slice(1)
-    }Request  =  [ ${EOL}`;
-    validatorString += `body("id").notEmpty(), ${EOL}`;
-    validatorString += `] ${EOL}`;
-  }
+  validatorString += `const validateDelete${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }Request  =  [ ${EOL}`;
+  validatorString += `body("id").notEmpty(), ${EOL}`;
+  validatorString += `] ${EOL}`;
+
+  validatorString += `
+export const ${fileName}RequestValidator = {
+  validateDelete${fileName.charAt(0).toUpperCase() + fileName.slice(1)}Request,
+  validateEdit${fileName.charAt(0).toUpperCase() + fileName.slice(1)}Request,
+  validateUpdate${fileName.charAt(0).toUpperCase() + fileName.slice(1)}Request,
+  validateCreate${fileName.charAt(0).toUpperCase() + fileName.slice(1)}Request,
+
+}
+    `;
+
   var dir = "src/validations";
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync("src/validations/validation.ts", validatorString);
+  fs.writeFileSync(`src/validations/${fileName}.ts`, validatorString);
 }
 
 function handlePrismaSchema() {
@@ -420,50 +464,46 @@ function handleTypes(fileName, columns) {
   let typeString = `// Generated By NPM Crud Author<hello@imritesh.com>${EOL}`;
 
   typeString += `
-    export interface ICreate${
-      fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    } {
+export interface ICreate${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  } {
     `;
   columns.forEach((ele) => {
     if (ele.name != "timestamps" && !ele.notRequiredInForm) {
-      typeString += `${ele.name} : ${
-        ele.type === "Int" ? "Number" : "string;"
+      typeString += ` ${ele.name}: ${
+        ele.type === "Int" ? "number" : "string;"
       } ${EOL}`;
     }
   });
-  typeString += `}${EOL}`;
+  typeString += `}`;
 
   typeString += `
-    export interface IEdit${
-      fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    } {${EOL}
-        id: number;
-    `;
+export interface IEdit${fileName.charAt(0).toUpperCase() + fileName.slice(1)} {
+  id: number;
+`;
 
   typeString += `}${EOL}`;
   typeString += `
-    export interface IUpdate${
-      fileName.charAt(0).toUpperCase() + fileName.slice(1)
-    } {
-        id: number;
-    `;
-  columns.forEach((ele) => {
-    if (ele.name != "timestamps" && !ele.notRequiredInForm) {
-      typeString += `${ele.name} : ${
-        ele.type === "Int" ? "Number" : "string;"
-      } ${EOL}`;
-    }
-  });
-  typeString += `}${EOL}`;
-  typeString += `
-    
-   export interface IDelete${
-     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-   } { ${EOL}
+export interface IUpdate${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  } {
     id: number;
     `;
+  columns.forEach((ele) => {
+    if (ele.name != "timestamps" && !ele.notRequiredInForm) {
+      typeString += `${ele.name} : ${
+        ele.type === "Int" ? "Number" : "string;"
+      } ${EOL}`;
+    }
+  });
+  typeString += `}`;
+  typeString += `
+export interface IDelete${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  } {
+  id: number;
+`;
   typeString += `}${EOL}
-
     `;
 
   var dir = "src/dtos";
