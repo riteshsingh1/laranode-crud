@@ -27,7 +27,13 @@ try {
   }
   for (let index = 0; index < config.tables.length; index++) {
     const element = config.tables[index];
-    handleRoutes(element.name, element.columns, config.routesDirectory);
+    handleRoutes(
+      element.name,
+      element.columns,
+      config.routesDirectory,
+      config.controllersDirectory,
+      config.validationsDirectory
+    );
   }
 } catch (err) {
   console.error(err);
@@ -42,23 +48,35 @@ function handleRoutes(
 ) {
   let routeString = `
 import express, { Router } from "express";
-import {${fileName}Controller} from "${controllerPath}/${fileName}.controller";
-import {${fileName}RequestValidator} from "${validationPath}/${fileName}.validator";
+import {${fileName}Controller} from "@controllers/${fileName}.controller";
+import {${fileName}RequestValidator} from "@validations/${fileName}.validator";
 
+const {
+  validateCreate${fileName.charAt(0).toUpperCase() + fileName.slice(1)}Request,
+  validateEdit${fileName.charAt(0).toUpperCase() + fileName.slice(1)}Request,
+  validateUpdate${fileName.charAt(0).toUpperCase() + fileName.slice(1)}Request,
+  validateDelete${fileName.charAt(0).toUpperCase() + fileName.slice(1)}Request
+} = ${fileName}RequestValidator;
+
+const {
+  findAllRecords,
+  create,
+  edit,
+  update,
+  deleteRecord
+} = ${fileName}Controller
 
 const router: Router = express.Router();
 /**
  * Get All Records
  * @request{}
- * @response JSON
- **/
-`;
+ * @response JSON [{`;
   columns.forEach((c) => {
-    if (c.name != "timestamps" && !c.notRequiredInForm) {
-      routeString += `${c.name}: ${c.type},`;
-    }
+    routeString += `${c.name}: ${c.type},`;
   });
-  routeString += `router.get('/get-all-${fileName}s',${fileName}Controller.findAll);
+  routeString += `}]
+**/
+  router.get('/get-all-${fileName}s',findAllRecords);
 
   /**
    * Create New ${fileName}
@@ -71,25 +89,26 @@ const router: Router = express.Router();
 
   routeString += `
   **/
-  router.post('/create', ${fileName}RequestValidator.validateCreate${
+router.post('/create', validateCreate${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }Request, ${fileName}Controller.create);
-
-router.post('/edit', ${fileName}RequestValidator.validateCreate${
+  }Request, create);
+router.post('/edit', validateEdit${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }Request, ${fileName}Controller.create);
-
-router.post('/update', ${fileName}RequestValidator.validateCreate${
+  }Request, edit);
+router.post('/update', validateUpdate${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }Request, ${fileName}Controller.create);
-
-router.post('/create', ${fileName}RequestValidator.validateCreate${
+  }Request, update);
+router.post('/delete', validateDelete${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }Request, ${fileName}Controller.create);
+  }Request, deleteRecord);
 
-
-  export default router;
+export default router;
   `;
+  var dir = routePath || "src/routes";
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(`${dir}/${fileName}.route.ts`, routeString);
 }
 
 function handleService(fileName, columns, path) {
@@ -100,7 +119,7 @@ import {
   IUpdate${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   IEdit${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   IDelete${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
-} from '../dtos/${fileName}.dto';
+} from '@dtos/${fileName}.dto';
 // initialized prisma client, you can do this in a seperate file as well
 const prisma = new PrismaClient();${EOL}
 /**
@@ -315,7 +334,7 @@ import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import { ${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
-  }Service } from '../services/${fileName}.service';${EOL}
+  }Service } from '@services/${fileName}.service';${EOL}
 const { 
   create${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   edit${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
@@ -412,13 +431,13 @@ const deleteRecord =  async (req:Request,res:Response) => {
 }
 
 
-export const ${fileName}Controller = [
+export const ${fileName}Controller = {
   create,
   edit,
   update,
   deleteRecord,
   findAllRecords
-]`;
+}`;
   var dir = path || "src/controllers";
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
