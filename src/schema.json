@@ -2,6 +2,10 @@
     "databaseType":"mysql",
     "relationShipMode":"prisma",
     "schemaFileLocation":"schema/prisma",
+    "validationsDirectory":"src/app/http/validations",
+    "dtosDirectory":"src/app/http/dtos",
+    "controllersDirectory":"src/app/http/controllers",
+    "routesDirectory":"src/routes",
     "tables":[
         {
             "name":"users",

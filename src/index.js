@@ -25,8 +25,71 @@ try {
     const element = config.tables[index];
     handleController(element.name, config.controllersDirectory);
   }
+  for (let index = 0; index < config.tables.length; index++) {
+    const element = config.tables[index];
+    handleRoutes(element.name, element.columns, config.routesDirectory);
+  }
 } catch (err) {
   console.error(err);
+}
+
+function handleRoutes(
+  fileName,
+  columns,
+  routePath,
+  controllerPath,
+  validationPath
+) {
+  let routeString = `
+import express, { Router } from "express";
+import {${fileName}Controller} from "${controllerPath}/${fileName}.controller";
+import {${fileName}RequestValidator} from "${validationPath}/${fileName}.validator";
+
+
+const router: Router = express.Router();
+/**
+ * Get All Records
+ * @request{}
+ * @response JSON
+ **/
+`;
+  columns.forEach((c) => {
+    if (c.name != "timestamps" && !c.notRequiredInForm) {
+      routeString += `${c.name}: ${c.type},`;
+    }
+  });
+  routeString += `router.get('/get-all-${fileName}s',${fileName}Controller.findAll);
+
+  /**
+   * Create New ${fileName}
+   * @request{`;
+  columns.forEach((c) => {
+    if (c.name != "timestamps" && !c.notRequiredInForm) {
+      routeString += `* ${c.name}: ${c.type},`;
+    }
+  });
+
+  routeString += `
+  **/
+  router.post('/create', ${fileName}RequestValidator.validateCreate${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }Request, ${fileName}Controller.create);
+
+router.post('/edit', ${fileName}RequestValidator.validateCreate${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }Request, ${fileName}Controller.create);
+
+router.post('/update', ${fileName}RequestValidator.validateCreate${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }Request, ${fileName}Controller.create);
+
+router.post('/create', ${fileName}RequestValidator.validateCreate${
+    fileName.charAt(0).toUpperCase() + fileName.slice(1)
+  }Request, ${fileName}Controller.create);
+
+
+  export default router;
+  `;
 }
 
 function handleService(fileName, columns, path) {
@@ -412,7 +475,7 @@ export const ${fileName}RequestValidator = {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(`${dir}/${fileName}.ts`, validatorString);
+  fs.writeFileSync(`${dir}/${fileName}.validator.ts`, validatorString);
 }
 
 function handlePrismaSchema(path) {
