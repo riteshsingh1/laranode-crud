@@ -1,61 +1,62 @@
 {
-    "databaseType":"mysql",
-    "relationShipMode":"prisma",
-    "schemaFileLocation":"schema/prisma",
-    "validationsDirectory":"src/app/http/validations",
-    "dtosDirectory":"src/app/http/dtos",
-    "controllersDirectory":"src/app/http/controllers",
-    "routesDirectory":"src/routes",
-    "tables":[
+  "databaseType": "mysql",
+  "relationShipMode": "prisma",
+  "schemaFileLocation": "schema/prisma",
+  "validationsDirectory": "src/app/http/validations",
+  "dtosDirectory": "src/app/http/dtos",
+  "controllersDirectory": "src/app/http/controllers",
+  "routesDirectory": "src/routes",
+  "tables": [
+    {
+      "name": "users",
+      "override": false,
+      "columns": [
         {
-            "name":"users",
-            "columns":[
-                {
-                    "name":"name",
-                    "type":"string",
-                    "validations":"required|max:255|min:200|string"
-                },
-                {
-                    "name":"email",
-                    "type":"string",
-                    "unique":true,
-                    "validations":"required|max:255|min:200|string"
-                },
-                {
-                    "name":"mobile",
-                    "type":"string",
-                    "unique":true,
-                    "validations":"required|max:255|min:200|string"
-                },
-                {
-                    "name":"isActive",
-                    "type":"boolean",
-                    "notRequiredInForm":true
-                },
-                {
-                    "name":"timestamps"
-                }
-            ]
+          "name": "name",
+          "type": "string",
+          "validations": "required|max:255|min:200|string"
         },
         {
-            "name":"userLogins",
-            "columns":[
-                {
-                    "name":"userId",
-                    "type":"int",
-                    "relationField":{
-                        "type":"belongsTo",
-                        "table":"users",
-                        "isNull":false
-                    }
-                },
-                {
-                    "name":"token",
-                    "type":"string",
-                    "unique":true,
-                    "validations":"required|max:255|min:200|string"
-                }
-            ]
+          "name": "email",
+          "type": "string",
+          "unique": true,
+          "validations": "required|max:255|min:200|string"
+        },
+        {
+          "name": "mobile",
+          "type": "string",
+          "unique": true,
+          "validations": "required|max:255|min:200|string"
+        },
+        {
+          "name": "isActive",
+          "type": "boolean",
+          "notRequiredInForm": true
+        },
+        {
+          "name": "timestamps"
         }
-    ]
+      ]
+    },
+    {
+      "name": "userLogins",
+      "columns": [
+        {
+          "name": "userId",
+          "type": "int",
+          "relationField": {
+            "type": "belongsTo",
+            "table": "users",
+            "isNull": false
+          }
+        },
+        {
+          "name": "token",
+          "type": "string",
+          "unique": true,
+          "validations": "required|max:255|min:200|string"
+        }
+      ]
+    }
+  ]
 }

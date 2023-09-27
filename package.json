@@ -1,6 +1,6 @@
 {
   "name": "npm-crud",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Crud Generator with Prisma Mysql And Express Js with validation",
   "main": "index.js",
   "scripts": {
