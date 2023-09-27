@@ -3,49 +3,62 @@ const { EOL } = require("os");
 const fs = require("fs");
 
 try {
-  handlePrismaSchema(config.schemaFileLocation);
+  if (validateConfigFile(config)) {
+    handlePrismaSchema(config.schemaFileLocation);
 
-  for (let index = 0; index < config.tables.length; index++) {
-    const element = config.tables[index];
-    handleValidations(
-      element.name,
-      element.columns,
-      config.validationsDirectory
-    );
-  }
-  for (let index = 0; index < config.tables.length; index++) {
-    const element = config.tables[index];
-    handleTypes(element.name, element.columns, config.dtosDirectory);
-  }
-  for (let index = 0; index < config.tables.length; index++) {
-    const element = config.tables[index];
-    handleService(element.name, element.columns, config.servicesDirectory);
-  }
-  for (let index = 0; index < config.tables.length; index++) {
-    const element = config.tables[index];
-    handleController(element.name, config.controllersDirectory);
-  }
-  for (let index = 0; index < config.tables.length; index++) {
-    const element = config.tables[index];
-    handleRoutes(
-      element.name,
-      element.columns,
-      config.routesDirectory,
-      config.controllersDirectory,
-      config.validationsDirectory
-    );
+    for (let index = 0; index < config.tables.length; index++) {
+      const element = config.tables[index];
+      handleValidations(
+        element,
+        element.name,
+        element.columns,
+        config.validationsDirectory
+      );
+    }
+    for (let index = 0; index < config.tables.length; index++) {
+      const element = config.tables[index];
+      handleTypes(element, element.name, element.columns, config.dtosDirectory);
+    }
+    for (let index = 0; index < config.tables.length; index++) {
+      const element = config.tables[index];
+      handleService(
+        element,
+        element.name,
+        element.columns,
+        config.servicesDirectory
+      );
+    }
+    for (let index = 0; index < config.tables.length; index++) {
+      const element = config.tables[index];
+      handleController(element, element.name, config.controllersDirectory);
+    }
+    for (let index = 0; index < config.tables.length; index++) {
+      const element = config.tables[index];
+      handleRoutes(
+        element,
+        element.name,
+        element.columns,
+        config.routesDirectory,
+        config.controllersDirectory,
+        config.validationsDirectory
+      );
+    }
   }
 } catch (err) {
   console.error(err);
 }
 
 function handleRoutes(
+  element,
   fileName,
   columns,
   routePath,
   controllerPath,
   validationPath
 ) {
+  if (!element.override) {
+    return true;
+  }
   let routeString = `
 import express, { Router } from "express";
 import {${fileName}Controller} from "@controllers/${fileName}.controller";
@@ -111,17 +124,19 @@ export default router;
   fs.writeFileSync(`${dir}/${fileName}.route.ts`, routeString);
 }
 
-function handleService(fileName, columns, path) {
+function handleService(element, fileName, columns, path) {
+  if (!element.override) {
+    return true;
+  }
   let serviceString = `
-import { ${fileName}, PrismaClient } from '@prisma/client';
+import prisma from "@/core/database";
 import {
   ICreate${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   IUpdate${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   IEdit${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
   IDelete${fileName.charAt(0).toUpperCase() + fileName.slice(1)},
 } from '@dtos/${fileName}.dto';
-// initialized prisma client, you can do this in a seperate file as well
-const prisma = new PrismaClient();${EOL}
+${EOL}
 /**
  * Saves ${fileName} into database
  * @param data {
@@ -132,7 +147,6 @@ const prisma = new PrismaClient();${EOL}
 `;
     }
   });
-
   serviceString += `* }
  * @returns {errorCode:'NO_ERROR' | 'EXCEPTION_ERROR', data:any}
  */
@@ -328,7 +342,10 @@ const update${
   fs.writeFileSync(`${dir}/${fileName}.service.ts`, serviceString);
 }
 
-function handleController(fileName, path) {
+function handleController(element, fileName, path) {
+  if (!element.override) {
+    return true;
+  }
   let controllerString = `
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
@@ -445,7 +462,11 @@ export const ${fileName}Controller = {
   fs.writeFileSync(`${path}/${fileName}.controller.ts`, controllerString);
 }
 
-function handleValidations(fileName, columns, path) {
+function handleValidations(element, fileName, columns, path) {
+  if (!element.override) {
+    return true;
+  }
+
   let validatorString = `import { body } from 'express-validator';${EOL}`;
 
   validatorString += `const validateCreate${
@@ -548,7 +569,10 @@ function writePrismaModels() {
   return newModel;
 }
 
-function handleTypes(fileName, columns, path) {
+function handleTypes(element, fileName, columns, path) {
+  if (!element.override) {
+    return true;
+  }
   let typeString = `// Generated By NPM Crud Author<hello@imritesh.com>${EOL}`;
 
   typeString += `
@@ -599,4 +623,34 @@ export interface IDelete${
     fs.mkdirSync(dir, { recursive: true });
   }
   fs.writeFileSync(`${dir}/${fileName}.dto.ts`, typeString);
+}
+
+function validateConfigFile(jsonData) {
+  let isCorrectConfig = true;
+
+  for (let index = 0; index < config.tables.length; index++) {
+    const element = config.tables[index];
+    if (element.name.charAt(0).toUpperCase() === element.name.charAt(0)) {
+      isCorrectConfig = false;
+      throw new Error(
+        `Invalid Table Name ${element.name}. First character of table name should be in lowercase only.`
+      );
+    }
+
+    element.columns.forEach((e) => {
+      if (e.name !== "timestamps") {
+        if (!["string", "text", "number", "boolean"].includes(e.type)) {
+          throw new Error(
+            `Invalid Column Type ${e.name} : Type ${e.type}. Allowed Types are string','text','number','boolean'`
+          );
+        }
+        if (e.notRequiredInForm && !e.defaultValue) {
+          throw new Error(
+            `If notRequiredInForm is true, Then default value should be there. error field -  ${e.name} : Type ${e.type}. `
+          );
+        }
+      }
+    });
+  }
+  return isCorrectConfig;
 }
