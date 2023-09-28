@@ -362,7 +362,7 @@ const {
 
   controllerString += `
 const create =  async (req:Request ,res:Response) => { 
-  const result = validationResult(req.body);
+  const result = validationResult(req);
   if(!result.isEmpty()) {
     return res.json({
         errorCode:'VALIDATION_ERROR',
@@ -379,7 +379,7 @@ const create =  async (req:Request ,res:Response) => {
 };
 
 const edit =  async (req:Request ,res:Response) => { 
-  const result = validationResult(req.body);
+  const result = validationResult(req);
   if(!result.isEmpty()){
     return res.json({
       errorCode:'VALIDATION_ERROR',
@@ -396,7 +396,7 @@ const edit =  async (req:Request ,res:Response) => {
 }
 
 const update =  async (req:Request ,res:Response) => { 
-  const result = validationResult(req.body);
+  const result = validationResult(req);
   if(!result.isEmpty()){
     return res.json({
       errorCode:'VALIDATION_ERROR',
@@ -413,13 +413,6 @@ const update =  async (req:Request ,res:Response) => {
 }
 
 const findAllRecords =  async (req:Request ,res:Response) => { 
-  const result = validationResult(req.body);
-  if(!result.isEmpty()){
-    return res.json({
-      errorCode:'VALIDATION_ERROR',
-      data:result.array()
-    })
-  }
   const { errorCode,data } = await findAll${
     fileName.charAt(0).toUpperCase() + fileName.slice(1)
   }();
@@ -431,7 +424,7 @@ const findAllRecords =  async (req:Request ,res:Response) => {
 
 
 const deleteRecord =  async (req:Request,res:Response) => { 
-  const result = validationResult(req.body);
+  const result = validationResult(req);
   if(!result.isEmpty()){
     return res.json({
       errorCode:'VALIDATION_ERROR',
